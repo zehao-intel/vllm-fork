@@ -7,6 +7,7 @@
 
 import habana_frameworks.torch as htorch
 import torch
+import math
 
 
 def reshape_and_cache(key,
@@ -30,8 +31,7 @@ def reshape_and_cache(key,
     # lots of padding, or are doing warmup.
     # This loop is a workaround for this issue. Please remove it
     # once key_cache.index_put_(indices, offsets), key) works.
-    num_kv_cache_passes = torch.div(num_slots_requested,
-                                    num_slots_available).ceil().int().item()
+    num_kv_cache_passes = math.ceil(num_slots_requested / num_slots_available)
     for i in range(num_kv_cache_passes):
         start_idx = i * num_slots_available
         end_idx = (i + 1) * num_slots_available
@@ -58,8 +58,7 @@ def prepare_to_cache(cache, slot_mapping):
     # lots of padding, or are doing warmup.
     # This loop is a workaround for this issue. Please remove it
     # once key_cache.index_put_(indices, offsets), key) works.
-    num_kv_cache_passes = torch.div(num_slots_requested,
-                                    num_slots_available).ceil().int().item()
+    num_kv_cache_passes = math.ceil(num_slots_requested / num_slots_available)
 
     return num_kv_cache_passes, num_slots_available, indices, offsets
 

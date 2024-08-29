@@ -9,6 +9,7 @@ import itertools
 import math
 import operator
 import os
+import sys
 import time
 from enum import IntEnum
 from typing import (TYPE_CHECKING, Any, Callable, Dict, List, NamedTuple,
@@ -190,6 +191,8 @@ class HpuModelAdapter():
         self.prefill_use_fusedsdpa = os.getenv('VLLM_PROMPT_USE_FUSEDSDPA',
                                                '0').lower() in ['1', 'true']
 
+        torch._dynamo.config.cache_size_limit = sys.maxsize
+        torch._dynamo.config.accumulated_cache_size_limit = sys.maxsize
         if not htorch.utils.internal.is_lazy() and not enforce_eager:
             self.model = torch.compile(self.model,
                                        backend='hpu_backend',
