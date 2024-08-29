@@ -197,6 +197,8 @@ class HpuModelAdapter():
             self.model = torch.compile(self.model,
                                        backend='hpu_backend',
                                        dynamic=False)
+        from torch.nn.parallel import DistributedDataParallel as DDP
+        self.ddp_model = DDP(self.model)
 
     def _set_attn_bias(self, attn_metadata, batch_size, seq_len, device,
                        dtype):
@@ -232,7 +234,8 @@ class HpuModelAdapter():
                                                       input_ids.size(1),
                                                       input_ids.device,
                                                       torch.bfloat16)
-        hidden_states = self.model(*args, **kwargs)
+        #hidden_states = self.model(*args, **kwargs)
+        hidden_states = self.ddp_model(*args, **kwargs)
         hidden_states = hidden_states.view(-1, hidden_states.shape[-1])
         hidden_states = hidden_states.index_select(0, selected_token_indices)
         return hidden_states
