@@ -92,7 +92,8 @@ def warmup_range(config: Tuple[int, int, int]):
     ramp_up_tw = itertools.takewhile(lambda x: x < bstep and x <= bmax, \
         ramp_up_acc)
     stable = range(bstep, bmax + 1, bstep)
-    return list(ramp_up_tw) + list(stable)
+    buckets = list(ramp_up_tw) + list(stable)
+    return list(filter(lambda bucket: bucket >= bmin, buckets))
 
 
 def warmup_buckets(bs_bucket_config, seq_bucket_config,
@@ -454,6 +455,7 @@ class HabanaModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
 
         # Profiler stats
         self.profiler_counter_helper = HabanaProfilerCounterHelper()
+        self.seen_configs: set = set()
         self._mem_margin: Optional[int] = None
         self._setup_buckets()
 
@@ -601,6 +603,11 @@ class HabanaModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
                 bucket for bucket in self.decode_buckets
                 if self._is_valid_bucket(bucket)
             ]
+        if not htorch.utils.internal.is_lazy() and not enforce_eager:
+            cache_size_limit = len(self.prompt_buckets)+len(self.decode_buckets)
+            torch._dynamo.config.cache_size_limit = cache_size_limit
+            torch._dynamo.config.accumulated_cache_size_limit = cache_size_limit*8
+            
         msg = (f"Generated {len(self.decode_buckets)} decode buckets: "
                f"{list(sorted(self.decode_buckets))}")
         logger.info(msg)
@@ -1018,8 +1025,13 @@ class HabanaModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
         paddings = [max_len - s for s in seq_lens]
         paddings = [0] + paddings[:-1]
         paddings = list(itertools.accumulate(paddings))
+        paddings_prompt_logprobs = []
+        for i, seq_group_metadata in enumerate(seq_group_metadata_list):
+            if seq_group_metadata.sampling_params.prompt_logprobs is not None \
+                              and seq_group_metadata.is_prompt:
+                paddings_prompt_logprobs += ([paddings[i]] * seq_lens[i])
         paddings = torch.tensor(
-            paddings,
+            paddings_prompt_logprobs if paddings_prompt_logprobs else paddings,
             dtype=sampling_metadata.selected_token_indices.dtype,
             device=sampling_metadata.selected_token_indices.device)
         sampling_metadata.selected_token_indices.add_(paddings)
@@ -1561,6 +1573,15 @@ class HabanaModelRunner(
         from neural_compressor.torch.quantization import finalize_calibration
         finalize_calibration(self.model.model)
 
+    def _check_config(self, batch_size, seq_len, is_prompt, warmup_mode):
+        cfg = (batch_size, seq_len, is_prompt)
+        seen = cfg in self.seen_configs
+        self.seen_configs.add(cfg)
+        if not seen and not warmup_mode:
+            phase = 'prompt' if is_prompt else 'decode'
+            logger.warning("Configuration: (%s, %s, %s) was not warmed-up!",
+                           phase, batch_size, seq_len)
+
     @torch.inference_mode()
     def execute_model(
         self,
@@ -1595,6 +1616,7 @@ class HabanaModelRunner(
         batch_size = input_tokens.size(0)
         seq_len = self._seq_len(attn_metadata)
         use_graphs = self._use_graphs(batch_size, seq_len, is_prompt)
+        self._check_config(batch_size, seq_len, is_prompt, warmup_mode)
         execute_model_kwargs = {
             "input_ids": input_tokens,
             "positions": input_positions,
