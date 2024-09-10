@@ -46,6 +46,10 @@ from .interfaces import SupportsLoRA
 
 is_hpu = current_platform.is_hpu()
 
+is_hpu = current_platform.is_hpu()
+
+is_hpu = current_platform.is_hpu()
+
 class GPTBigCodeAttention(nn.Module):
 
     def __init__(
@@ -227,11 +231,13 @@ class GPTBigCodeModel(nn.Module):
         hidden_states = inputs_embeds + position_embeds
 
         if is_hpu:
+        if is_hpu:
             import habana_frameworks.torch as htorch
             htorch.core.mark_step()
         for i in range(len(self.h)):
             layer = self.h[i]
             hidden_states = layer(hidden_states, kv_caches[i], attn_metadata)
+            if is_hpu:
             if is_hpu:
                 htorch.core.mark_step()
 
