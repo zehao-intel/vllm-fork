@@ -1477,7 +1477,7 @@ class HabanaModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
             torch._dynamo.config.accumulated_cache_size_limit = max(
                 cache_size_limit * 8,
                 torch._dynamo.config.accumulated_cache_size_limit)
-        
+
         start_mem = HabanaMemoryProfiler.current_device_memory_usage()
         start_time = time.perf_counter()
 
