@@ -1469,7 +1469,7 @@ class HabanaModelRunnerBase(ModelRunnerBase[TModelInputForHPU]):
 
         if not htorch.utils.internal.is_lazy() and not self.enforce_eager:
             cache_size_limit = len(self.prompt_buckets) + len(
-                self.decode_buckets)
+                self.decode_buckets) + 1
             torch._dynamo.config.cache_size_limit = max(
                 cache_size_limit, torch._dynamo.config.cache_size_limit)
             # Multiply by 8 to follow the original default ratio between
