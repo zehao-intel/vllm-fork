@@ -169,12 +169,14 @@ def generate_prompt_buckets(bs_bucket_config,
         sorted(filtered_buckets, key=lambda b: (b[0] * b[1], b[1], b[0])))
     omitted_buckets = list(
         sorted([x for x in buckets if x not in filtered_buckets]))
+    captured_buckets.extend([(16, 768), (32, 640), (32, 768), (16, 1024), (16, 640)])
     return captured_buckets, omitted_buckets
 
 
 def generate_decode_buckets(bs_bucket_config, blocks_bucket_config,
                             max_blocks):
     buckets = []
+    max_blocks = 940
     bs_buckets = warmup_range(bs_bucket_config)
     block_buckets = warmup_range(blocks_bucket_config)
     bmin, bstep, bmax = blocks_bucket_config
